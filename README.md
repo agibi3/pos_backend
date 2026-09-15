@@ -6,7 +6,7 @@ React POS frontend + FastAPI/PostgreSQL backend. Supabase is no longer required.
 
 ```bash
 npm install
-cp .env.example .env
+cp .env
 npm run dev
 ```
 

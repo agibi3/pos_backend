@@ -10,12 +10,12 @@ from .models import User, Product, SalesHistory, ReceiptCounter
 from .schemas import *
 from .security import create_token, hash_password, verify_password
 
-ENV = os.getenv("ENV", "development").lower()
-
-# Only auto-create tables outside production — in prod, schema changes should
-# go through migrations (Alembic), not an implicit create_all on import.
-if ENV != "production":
-    Base.metadata.create_all(bind=engine)
+# Auto-create tables on startup in every environment. This is a simple
+# CREATE TABLE IF NOT EXISTS-style operation — it only adds tables that
+# don't exist yet and never alters or drops existing ones, so it's safe
+# to leave on in production for a project this size. If the schema grows
+# and needs real migrations later, switch to Alembic and remove this.
+Base.metadata.create_all(bind=engine)
 
 with SessionLocal() as _db:
     if not _db.get(ReceiptCounter, 1):
