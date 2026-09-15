@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { BG, TEAL, TEAL_DARK, inputStyle } from "../theme.js";
-import { useSupabaseData } from "../context/DataProvider.jsx";
+import { useData } from "../context/DataProvider.jsx";
 import { Spinner, GlobalKeyframes } from "./common/UI.jsx";
 
 /**
@@ -9,7 +9,7 @@ import { Spinner, GlobalKeyframes } from "./common/UI.jsx";
  * matching the original app's convention.
  */
 export default function LoginScreen({ onLogin }) {
-  const { login, error: loadError } = useSupabaseData();
+  const { login, error: loadError } = useData();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");

@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { LogOut, Printer, ShoppingCart } from "lucide-react";
 import { BG, TEAL, TEAL_DARK, AMBER, INK, inputStyle } from "../../theme.js";
-import { useSupabaseData } from "../../context/DataProvider.jsx";
+import { useData } from "../../context/DataProvider.jsx";
 import { ActionBtn, FieldLabel, Select, ConfirmDialog } from "../common/UI.jsx";
 import Receipt from "./Receipt.jsx";
 
 export default function POSScreen({ cashier, onLogout }) {
-  const { products, insertRows, refresh } = useSupabaseData();
+  const { products, insertRows, refresh } = useData();
 
   const [cart, setCart] = useState([]);
   const [product, setProduct] = useState("");

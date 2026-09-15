@@ -1,16 +1,19 @@
 import React from "react";
 import { BG, TEAL } from "./theme.js";
-import { SupabaseDataProvider, useSupabaseData } from "./context/DataProvider.jsx";
+import { DataProvider, useData } from "./context/DataProvider.jsx";
 import { GlobalKeyframes, Spinner } from "./components/common/UI.jsx";
 import LoginScreen from "./components/LoginScreen.jsx";
 import POSScreen from "./components/pos/POSScreen.jsx";
 import AdminScreen from "./components/admin/AdminScreen.jsx";
 
 function Router() {
-  const { loading } = useSupabaseData();
-  const { currentUser, login, logout } = useSupabaseData();
+  const { loading, currentUser, login, logout } = useData();
 
-  if (loading && !currentUser) {
+  if (!currentUser) {
+    return <LoginScreen onLogin={login} />;
+  }
+
+  if (loading) {
     return (
       <div style={{ minHeight: "100vh", background: BG, display: "flex", alignItems: "center", justifyContent: "center" }}>
         <div style={{ color: TEAL, display: "flex", gap: 10, alignItems: "center", fontFamily: "'Inter', system-ui, sans-serif" }}>
@@ -22,10 +25,6 @@ function Router() {
     );
   }
 
-  if (!currentUser) {
-    return <LoginScreen onLogin={login} />;
-  }
-
   return currentUser.role === "admin" ? (
     <AdminScreen onLogout={logout} />
   ) : (
@@ -35,8 +34,8 @@ function Router() {
 
 export default function App() {
   return (
-    <SupabaseDataProvider>
+    <DataProvider>
       <Router />
-    </SupabaseDataProvider>
+    </DataProvider>
   );
 }

@@ -1,13 +1,13 @@
 import React, { useState } from "react";
 import { TEAL_DARK, inputStyle } from "../../theme.js";
-import { useSupabaseData } from "../../context/DataProvider.jsx";
+import { useData } from "../../context/DataProvider.jsx";
 import { Card, DataTable, FormRow, SmallBtn } from "../common/UI.jsx";
 
-const FIELD_MAP = { "User ID": "userId", "Full Name": "fullName", "User Name": "userName", Password: "password" };
+const FIELD_MAP = { "User ID": "userId", "Full Name": "fullName", "User Name": "userName", Password: "password", Role: "role" };
 
 export default function UsersTab({ notify }) {
-  const { users, insertRow, updateRow, refresh } = useSupabaseData();
-  const [form, setForm] = useState({ userId: "", fullName: "", userName: "", password: "" });
+  const { users, insertRow, updateRow, refresh } = useData();
+  const [form, setForm] = useState({ userId: "", fullName: "", userName: "", password: "", role: "cashier" });
   const [update, setUpdate] = useState({ field: "Full Name", to: "", userId: "" });
   const [busy, setBusy] = useState(false);
 
@@ -17,7 +17,7 @@ export default function UsersTab({ notify }) {
     try {
       await insertRow("users", form);
       await refresh();
-      setForm({ userId: "", fullName: "", userName: "", password: "" });
+      setForm({ userId: "", fullName: "", userName: "", password: "", role: "cashier" });
       notify("User added successfully");
     } catch (e) {
       notify(e.message);
@@ -64,19 +64,38 @@ export default function UsersTab({ notify }) {
           <FormRow label="Full name"><input style={inputStyle} value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} /></FormRow>
           <FormRow label="User name"><input style={inputStyle} value={form.userName} onChange={(e) => setForm({ ...form, userName: e.target.value })} /></FormRow>
           <FormRow label="Password"><input style={inputStyle} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} /></FormRow>
+          <FormRow label="Role">
+            <select style={inputStyle} value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
+              <option value="cashier">Cashier</option>
+              <option value="admin">Admin</option>
+            </select>
+          </FormRow>
           <SmallBtn onClick={addUser} disabled={busy}>Add user</SmallBtn>
         </Card>
         <Card style={{ flex: "1 1 320px" }}>
           <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Update user</div>
           <FormRow label="Field to change">
-            <select style={inputStyle} value={update.field} onChange={(e) => setUpdate({ ...update, field: e.target.value })}>
+            <select style={inputStyle} value={update.field} onChange={(e) => setUpdate({ ...update, field: e.target.value, to: "" })}>
               {Object.keys(FIELD_MAP).map((k) => (
                 <option key={k}>{k}</option>
               ))}
             </select>
           </FormRow>
-          <FormRow label="Change to"><input style={inputStyle} value={update.to} onChange={(e) => setUpdate({ ...update, to: e.target.value })} /></FormRow>
-          <FormRow label="User ID"><input style={inputStyle} value={update.userId} onChange={(e) => setUpdate({ ...update, userId: e.target.value })} /></FormRow>
+          <FormRow label="Change to">
+            {update.field === "Role" ? (
+              <select style={inputStyle} value={update.to} onChange={(e) => setUpdate({ ...update, to: e.target.value })}>
+                <option value="">Select a role…</option>
+                <option value="cashier">Cashier</option>
+                <option value="admin">Admin</option>
+              </select>
+            ) : (
+              <input style={inputStyle} value={update.to} onChange={(e) => setUpdate({ ...update, to: e.target.value })} />
+            )}
+          </FormRow>
+          <FormRow label="User"><select style={inputStyle} value={update.userId} onChange={(e) => setUpdate({ ...update, userId: e.target.value })}>
+            <option value="">Select a user…</option>
+            {users.map((u) => <option key={u.userId} value={u.userId}>{u.userId} — {u.fullName}</option>)}
+          </select></FormRow>
           <SmallBtn onClick={updateUser} disabled={busy}>Update user</SmallBtn>
         </Card>
       </div>

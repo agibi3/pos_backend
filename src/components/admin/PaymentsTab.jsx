@@ -1,11 +1,11 @@
 import React from "react";
 import { TEAL_DARK } from "../../theme.js";
-import { useSupabaseData } from "../../context/DataProvider.jsx";
+import { useData } from "../../context/DataProvider.jsx";
 import { naira, parseAmt } from "../../utils/format.js";
 import { Card, EmptyState } from "../common/UI.jsx";
 
 export default function PaymentsTab() {
-  const { payments } = useSupabaseData();
+  const { payments } = useData();
   const total = payments.reduce((sum, p) => sum + parseAmt(p.value), 0);
 
   return (

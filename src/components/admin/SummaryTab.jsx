@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { TEAL, TEAL_DARK, inputStyle } from "../../theme.js";
-import { useSupabaseData } from "../../context/DataProvider.jsx";
+import { useData } from "../../context/DataProvider.jsx";
 import { naira } from "../../utils/format.js";
 import { Card, EmptyState } from "../common/UI.jsx";
 
 export default function SummaryTab() {
-  const { apiUrl, token } = useSupabaseData();
+  const { apiUrl, token } = useData();
   const [period, setPeriod] = useState("weekly");
   const [summary, setSummary] = useState({ chart: [], total_sales: 0, paid_sales: 0, outstanding: 0 });
   const [error, setError] = useState("");

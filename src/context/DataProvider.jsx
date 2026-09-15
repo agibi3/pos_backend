@@ -12,7 +12,7 @@ async function request(path, options = {}, token = null) {
   return body;
 }
 
-export function SupabaseDataProvider({ children }) {
+export function DataProvider({ children }) {
   const [data, setData] = useState({ users: [], products: [], history: [], payments: [] });
   const [token, setToken] = useState(() => localStorage.getItem("pos_token") || "");
   const [currentUser, setCurrentUser] = useState(() => {
@@ -103,8 +103,8 @@ export function SupabaseDataProvider({ children }) {
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }
 
-export function useSupabaseData() {
+export function useData() {
   const ctx = useContext(DataContext);
-  if (!ctx) throw new Error("useSupabaseData must be used inside <SupabaseDataProvider>");
+  if (!ctx) throw new Error("useData must be used inside <DataProvider>");
   return ctx;
 }

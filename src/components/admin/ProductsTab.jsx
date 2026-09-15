@@ -1,13 +1,13 @@
 import React, { useState } from "react";
 import { TEAL_DARK, inputStyle } from "../../theme.js";
-import { useSupabaseData } from "../../context/DataProvider.jsx";
+import { useData } from "../../context/DataProvider.jsx";
 import { naira } from "../../utils/format.js";
 import { Card, DataTable, FormRow, SmallBtn } from "../common/UI.jsx";
 
 const FIELD_MAP = { "Prod ID": "prod_id", "Prod Name": "prod_name", "Unit Type": "unit_type", "Unit Price": "prod_price" };
 
 export default function ProductsTab({ notify }) {
-  const { products, insertRow, updateRow, refresh } = useSupabaseData();
+  const { products, insertRow, updateRow, refresh } = useData();
   const [form, setForm] = useState({ prod_id: "", prod_name: "", unit_type: "", prod_price: "" });
   const [update, setUpdate] = useState({ field: "Prod Name", to: "", prod_id: "" });
   const [busy, setBusy] = useState(false);
