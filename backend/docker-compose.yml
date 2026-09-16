@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: mai-ganima-pos-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: pos_db
+      POSTGRES_USER: pos_user
+      POSTGRES_PASSWORD: pos_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - pos_pgdata:/var/lib/postgresql/data
+
+volumes:
+  pos_pgdata:
