@@ -130,7 +130,7 @@ export default function POSScreen({ cashier, onLogout }) {
 
       {feed && <div className="no-print" style={{ textAlign: "center", color: "#B3261E", fontWeight: 600, padding: "8px 0", fontSize: 13.5 }}>{feed}</div>}
 
-      <div className="no-print" style={{ display: "flex", gap: 18, padding: 20, alignItems: "flex-start", flexWrap: "wrap" }}>
+      <div className="no-print" style={{ display: "flex", gap: 18, padding: 20, alignItems: "flex-start", flexWrap: "wrap", overflowX: "auto" }}>
         <div style={{ flex: "1 1 560px", minWidth: 340 }}>
           <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
             <ActionBtn color="#C0392B" onClick={() => setConfirmClear("all")}>Clear All</ActionBtn>
@@ -211,7 +211,9 @@ export default function POSScreen({ cashier, onLogout }) {
           </div>
         </div>
 
-        <Receipt receiptNo={receiptNo} cart={cart} customer={customer} cashier={cashier} pmtType={pmtType} status={pmtStatus} total={cartTotal} branch={activeBranch} />
+        <div style={{ flex: "0 0 320px", width: 320 }}>
+          <Receipt receiptNo={receiptNo} cart={cart} customer={customer} cashier={cashier} pmtType={pmtType} status={pmtStatus} total={cartTotal} branch={activeBranch} />
+        </div>
       </div>
 
       {/* print-only receipt */}

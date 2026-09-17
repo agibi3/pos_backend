@@ -27,7 +27,7 @@ export default function Receipt({ receiptNo, cart, customer, cashier, pmtType, s
         <ReceiptRow k="Receipt ID:" v={receiptNo} />
         <ReceiptRow k="Tel:" v={phone} />
         <ReceiptRow k="Customer:" v={customer} />
-        <ReceiptRow k="Payment:" v={pmtType} />
+        {status === "paid" && <ReceiptRow k="Payment:" v={pmtType} />}
         <ReceiptRow k="Cashier:" v={cashier} />
         <ReceiptRow k="Date:" v={new Date().toLocaleString()} />
         {status && (
@@ -56,7 +56,6 @@ export default function Receipt({ receiptNo, cart, customer, cashier, pmtType, s
       </div>
       <div style={{ textAlign: "center", marginTop: 10 }}>
         <Barcode value={receiptNo} />
-        <div style={{ fontSize: 11, letterSpacing: 1, color: "#444", marginTop: 2 }}>{receiptNo}</div>
       </div>
       <div style={{ textAlign: "center", marginTop: 10, color: "#444" }}>
         <div>Thanks for your patronage</div>
