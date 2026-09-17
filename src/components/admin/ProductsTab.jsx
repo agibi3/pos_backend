@@ -4,11 +4,11 @@ import { useSupabaseData } from "../../context/DataProvider.jsx";
 import { naira } from "../../utils/format.js";
 import { Card, DataTable, FormRow, SmallBtn } from "../common/UI.jsx";
 
-const FIELD_MAP = { "Prod ID": "prod_id", "Prod Name": "prod_name", "Unit Type": "unit_type", "Unit Price": "prod_price" };
+const FIELD_MAP = { "Prod ID": "prod_id", "Prod Name": "prod_name", "Unit Type": "unit_type", "Unit Price": "prod_price", "Bulk Price": "bulk_price" };
 
 export default function ProductsTab({ notify }) {
   const { products, insertRow, updateRow, refresh } = useSupabaseData();
-  const [form, setForm] = useState({ prod_id: "", prod_name: "", unit_type: "", prod_price: "" });
+  const [form, setForm] = useState({ prod_id: "", prod_name: "", unit_type: "", prod_price: "", bulk_price: "" });
   const [update, setUpdate] = useState({ field: "Prod Name", to: "", prod_id: "" });
   const [busy, setBusy] = useState(false);
 
@@ -16,9 +16,9 @@ export default function ProductsTab({ notify }) {
     if (!form.prod_id || !form.prod_name || !form.unit_type || !form.prod_price) return notify("Fill all fields to add a product");
     setBusy(true);
     try {
-      await insertRow("products", { ...form, prod_price: parseFloat(form.prod_price) });
+      await insertRow("products", { ...form, prod_price: parseFloat(form.prod_price), bulk_price: parseFloat(form.bulk_price || form.prod_price) });
       await refresh();
-      setForm({ prod_id: "", prod_name: "", unit_type: "", prod_price: "" });
+      setForm({ prod_id: "", prod_name: "", unit_type: "", prod_price: "", bulk_price: "" });
       notify("Product added successfully");
     } catch (e) {
       notify(e.message);
@@ -51,9 +51,10 @@ export default function ProductsTab({ notify }) {
             { key: "prod_id", label: "ID", width: "0.6fr" },
             { key: "prod_name", label: "Product", width: "1.4fr" },
             { key: "unit_type", label: "Unit type", width: "1fr" },
-            { key: "prod_price", label: "Price", width: "1fr" },
+            { key: "prod_price", label: "End-user price", width: "1fr" },
+            { key: "bulk_price", label: "Bulk price", width: "1fr" },
           ]}
-          rows={products.map((p) => ({ ...p, prod_price: naira(p.prod_price) }))}
+          rows={products.map((p) => ({ ...p, prod_price: naira(p.prod_price), bulk_price: naira(p.bulk_price) }))}
         />
       </Card>
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
@@ -62,7 +63,8 @@ export default function ProductsTab({ notify }) {
           <FormRow label="Product ID"><input style={inputStyle} value={form.prod_id} onChange={(e) => setForm({ ...form, prod_id: e.target.value })} /></FormRow>
           <FormRow label="Product name"><input style={inputStyle} value={form.prod_name} onChange={(e) => setForm({ ...form, prod_name: e.target.value })} /></FormRow>
           <FormRow label="Unit type"><input style={inputStyle} value={form.unit_type} onChange={(e) => setForm({ ...form, unit_type: e.target.value })} /></FormRow>
-          <FormRow label="Price"><input style={inputStyle} value={form.prod_price} onChange={(e) => setForm({ ...form, prod_price: e.target.value })} /></FormRow>
+          <FormRow label="End-user (retail) price"><input style={inputStyle} value={form.prod_price} onChange={(e) => setForm({ ...form, prod_price: e.target.value })} /></FormRow>
+          <FormRow label="Bulk price"><input style={inputStyle} value={form.bulk_price} onChange={(e) => setForm({ ...form, bulk_price: e.target.value })} placeholder="Same as end-user price if left blank" /></FormRow>
           <SmallBtn onClick={addProduct} disabled={busy}>Add product</SmallBtn>
         </Card>
         <Card style={{ flex: "1 1 320px" }}>

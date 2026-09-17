@@ -45,7 +45,21 @@ class Product(Base):
     prod_id: Mapped[str] = mapped_column(String(50), primary_key=True)
     prod_name: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
     unit_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    # End-user / retail price.
     prod_price: Mapped[float] = mapped_column(Float, nullable=False)
+    # Bulk-sale price — offered as an alternative at the point of sale, e.g.
+    # for wholesale customers buying in quantity.
+    bulk_price: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    # Inventory. stock_level is intentionally allowed to go negative — a sale
+    # is never blocked for insufficient stock, it's just carried as a
+    # backorder until the next restock brings it positive again.
+    stock_level: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    # Cost of the most recent restock batch.
+    unit_cost: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    # Average cost, recomputed on every restock as
+    # (previous unit_cost + new batch's unit_cost) / 2. This is what gross
+    # profit and sales_history.avg_cost are based on.
+    avg_cost: Mapped[float] = mapped_column(Float, nullable=False, default=0)
 
 
 class ReceiptCounter(Base):
@@ -68,6 +82,9 @@ class SalesHistory(Base):
     total: Mapped[float] = mapped_column(Float, nullable=False)
     # "order" (just rung up, not yet settled) / "paid" / "not_paid" / "cancelled"
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="order", index=True)
+    # Snapshot of the product's avg_cost at the moment of sale, so gross
+    # profit on old receipts doesn't shift later when costs/restocks change.
+    avg_cost: Mapped[float] = mapped_column(Float, nullable=False, default=0)
 
 
 Index("ix_sales_history_date_status", SalesHistory.date, SalesHistory.status)

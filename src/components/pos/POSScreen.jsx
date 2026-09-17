@@ -18,6 +18,8 @@ export default function POSScreen({ cashier, onLogout }) {
   const [screen, setScreen] = useState("sell"); // 'sell' | 'reprint'
   const [cart, setCart] = useState([]);
   const [product, setProduct] = useState("");
+  const [prodId, setProdId] = useState("");
+  const [priceType, setPriceType] = useState("retail"); // 'retail' | 'bulk'
   const [price, setPrice] = useState("");
   const [qty, setQty] = useState("");
   const [total, setTotal] = useState("");
@@ -40,7 +42,14 @@ export default function POSScreen({ cashier, onLogout }) {
   const handleProductPick = (name) => {
     setProduct(name);
     const p = products.find((p) => p.prod_name === name);
-    setPrice(p ? String(p.prod_price) : "");
+    setProdId(p ? p.prod_id : "");
+    setPrice(p ? String(priceType === "bulk" ? p.bulk_price : p.prod_price) : "");
+  };
+
+  const handlePriceTypeChange = (type) => {
+    setPriceType(type);
+    const p = products.find((p) => p.prod_name === product);
+    if (p) setPrice(String(type === "bulk" ? p.bulk_price : p.prod_price));
   };
 
   const addToCart = () => {
@@ -57,9 +66,11 @@ export default function POSScreen({ cashier, onLogout }) {
     }
     setCart((c) => [
       ...c,
-      { id: crypto.randomUUID(), product, price: priceNum, qty: Math.round(qtyNum * 100) / 100, total: Math.round(totalNum * 100) / 100 },
+      { id: crypto.randomUUID(), product, prod_id: prodId || null, price: priceNum, qty: Math.round(qtyNum * 100) / 100, total: Math.round(totalNum * 100) / 100 },
     ]);
     setProduct("");
+    setProdId("");
+    setPriceType("retail");
     setPrice("");
     setQty("");
     setTotal("");
@@ -85,6 +96,7 @@ export default function POSScreen({ cashier, onLogout }) {
         customer,
         cashier,
         prod: item.product,
+        prod_id: item.prod_id || null,
         price: item.price,
         qty: item.qty,
         total: item.total,
@@ -153,7 +165,7 @@ export default function POSScreen({ cashier, onLogout }) {
           </div>
 
           <div style={{ background: "#fff", borderRadius: 12, padding: 16, boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1.6fr 0.9fr 1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
               <div>
                 <FieldLabel>Product</FieldLabel>
                 <select value={product} onChange={(e) => handleProductPick(e.target.value)} style={inputStyle}>
@@ -161,6 +173,13 @@ export default function POSScreen({ cashier, onLogout }) {
                   {products.map((p) => (
                     <option key={p.prod_id} value={p.prod_name}>{p.prod_name}</option>
                   ))}
+                </select>
+              </div>
+              <div>
+                <FieldLabel>Price type</FieldLabel>
+                <select value={priceType} onChange={(e) => handlePriceTypeChange(e.target.value)} style={inputStyle}>
+                  <option value="retail">End-user</option>
+                  <option value="bulk">Bulk</option>
                 </select>
               </div>
               <div>

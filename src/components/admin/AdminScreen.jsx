@@ -5,6 +5,7 @@ import { useSupabaseData } from "../../context/DataProvider.jsx";
 import SummaryTab from "./SummaryTab.jsx";
 import UsersTab from "./UsersTab.jsx";
 import ProductsTab from "./ProductsTab.jsx";
+import InventoryTab from "./InventoryTab.jsx";
 import HistoryTab from "./HistoryTab.jsx";
 import PaymentsTab from "./PaymentsTab.jsx";
 import BranchesTab from "./BranchesTab.jsx";
@@ -13,6 +14,7 @@ const BRANCH_SCOPED_TABS = [
   { id: "summary", label: "Summary" },
   { id: "users", label: "Users" },
   { id: "products", label: "Manage Products" },
+  { id: "inventory", label: "Inventory" },
   { id: "history", label: "Sales History" },
   { id: "payments", label: "Payment" },
 ];
@@ -91,6 +93,7 @@ export default function AdminScreen({ onLogout }) {
               {tab === "summary" && <SummaryTab />}
               {tab === "users" && <UsersTab notify={notify} />}
               {tab === "products" && <ProductsTab notify={notify} />}
+              {tab === "inventory" && <InventoryTab notify={notify} />}
               {tab === "history" && <HistoryTab />}
               {tab === "payments" && <PaymentsTab notify={notify} />}
               {tab === "branches" && isOverallAdmin && <BranchesTab notify={notify} />}

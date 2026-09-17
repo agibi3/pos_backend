@@ -65,16 +65,26 @@ class ProductCreate(BaseModel):
     prod_name: str
     unit_type: str
     prod_price: float
+    bulk_price: float = 0
+    stock_level: float = 0
+    unit_cost: float = 0
 
 
 class ProductUpdate(BaseModel):
     prod_name: str | None = None
     unit_type: str | None = None
     prod_price: float | None = None
+    bulk_price: float | None = None
+
+
+class RestockIn(BaseModel):
+    quantity: float = Field(gt=0)
+    unit_cost: float = Field(ge=0)
 
 
 class SaleItem(BaseModel):
     product: str
+    prod_id: str | None = None
     price: float
     qty: float
     total: float

@@ -121,7 +121,7 @@ export function SupabaseDataProvider({ children }) {
     const grouped = rows.reduce((acc, row) => {
       const key = row.receipt_no;
       if (!acc[key]) acc[key] = { receipt_no: key, pmt_type: row.pmt_type, customer: row.customer, cashier: row.cashier, status: row.status || "order", items: [] };
-      acc[key].items.push({ product: row.prod, price: row.price, qty: row.qty, total: row.total });
+      acc[key].items.push({ product: row.prod, prod_id: row.prod_id || null, price: row.price, qty: row.qty, total: row.total });
       return acc;
     }, {});
     const out = [];
@@ -148,6 +148,10 @@ export function SupabaseDataProvider({ children }) {
     request(withBranch(`/sales/${encodeURIComponent(receiptNo)}/payment-status`, effectiveBranchId), { method: "PATCH", body: JSON.stringify({ status }) }, token),
   [token, effectiveBranchId]);
 
+  const restockProduct = useCallback(async (prodId, quantity, unitCost) =>
+    request(withBranch(`/products/${encodeURIComponent(prodId)}/restock`, effectiveBranchId), { method: "POST", body: JSON.stringify({ quantity, unit_cost: unitCost }) }, token),
+  [token, effectiveBranchId]);
+
   const createBranch = useCallback(async (body) => {
     const b = await request("/branches", { method: "POST", body: JSON.stringify(body) }, token);
     await loadBranches();
@@ -158,24 +162,4 @@ export function SupabaseDataProvider({ children }) {
     const b = await request(`/branches/${encodeURIComponent(branchId)}`, { method: "PATCH", body: JSON.stringify(patch) }, token);
     await loadBranches();
     return b;
-  }, [token, loadBranches]);
-
-  const activeBranch = useMemo(
-    () => branches.find((b) => b.branchId === effectiveBranchId) || currentUser?.branch || null,
-    [branches, effectiveBranchId, currentUser]
-  );
-
-  const value = {
-    ...data, loading, error, token, currentUser, login, logout, refresh,
-    insertRow, insertRows, updateRow, getSales, getSaleByReceipt, setPaymentStatus,
-    branches, activeBranchId: effectiveBranchId, chooseBranch, createBranch, updateBranch, activeBranch,
-    apiUrl: API_URL,
-  };
-  return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
-}
-
-export function useSupabaseData() {
-  const ctx = useContext(DataContext);
-  if (!ctx) throw new Error("useSupabaseData must be used inside <SupabaseDataProvider>");
-  return ctx;
-}
+  }, [

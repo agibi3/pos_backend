@@ -2,7 +2,7 @@ import os
 from datetime import datetime, timedelta, timezone
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select, text, update
 from sqlalchemy.orm import Session
 from .branching import create_branch_schema, make_schema_name
 from .database import Base, engine, get_db, SessionLocal
@@ -17,6 +17,31 @@ from .security import create_token, hash_password, verify_password
 # they only ever get created per-branch, inside that branch's own schema
 # (see branching.create_branch_schema), the first time a branch is added.
 Base.metadata.create_all(bind=engine, tables=[Branch.__table__, User.__table__])
+
+
+def _ensure_inventory_columns() -> None:
+    """One-time, idempotent migration: adds the stock/cost columns to every
+    *existing* branch's products/sales_history tables. New branches already
+    get these columns automatically, since create_branch_schema clones the
+    current Product/SalesHistory model definitions — this just backfills
+    branches that were created before inventory tracking existed."""
+    with SessionLocal() as db:
+        schema_names = [b.schema_name for b in db.scalars(select(Branch)).all()]
+    with engine.begin() as conn:
+        for schema in schema_names:
+            conn.execute(text(f'ALTER TABLE "{schema}".products ADD COLUMN IF NOT EXISTS stock_level DOUBLE PRECISION NOT NULL DEFAULT 0'))
+            conn.execute(text(f'ALTER TABLE "{schema}".products ADD COLUMN IF NOT EXISTS unit_cost DOUBLE PRECISION NOT NULL DEFAULT 0'))
+            conn.execute(text(f'ALTER TABLE "{schema}".products ADD COLUMN IF NOT EXISTS avg_cost DOUBLE PRECISION NOT NULL DEFAULT 0'))
+            conn.execute(text(f'ALTER TABLE "{schema}".products ADD COLUMN IF NOT EXISTS bulk_price DOUBLE PRECISION NOT NULL DEFAULT 0'))
+            conn.execute(text(f'ALTER TABLE "{schema}".sales_history ADD COLUMN IF NOT EXISTS avg_cost DOUBLE PRECISION NOT NULL DEFAULT 0'))
+
+
+try:
+    _ensure_inventory_columns()
+except Exception:
+    # Don't block app startup on this — e.g. first-ever run, before the
+    # `branches` table has any rows, or a DB user without ALTER rights.
+    pass
 
 app = FastAPI(title="Mai_Ganima POS API", version="2.0.0")
 origins = [x.strip() for x in os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",") if x.strip()]
@@ -37,7 +62,14 @@ def user_out(u: User, db: Session):
 
 
 def row_out(r: SalesHistory):
-    return {"id": r.id, "receipt_no": r.receipt_no, "date": r.date, "pmt_type": r.pmt_type, "customer": r.customer, "cashier": r.cashier, "prod": r.prod, "price": r.price, "qty": r.qty, "total": r.total, "status": r.status}
+    return {"id": r.id, "receipt_no": r.receipt_no, "date": r.date, "pmt_type": r.pmt_type, "customer": r.customer, "cashier": r.cashier, "prod": r.prod, "price": r.price, "qty": r.qty, "total": r.total, "status": r.status, "avg_cost": r.avg_cost}
+
+
+def product_out(p: Product):
+    return {
+        "prod_id": p.prod_id, "prod_name": p.prod_name, "unit_type": p.unit_type, "prod_price": p.prod_price,
+        "bulk_price": p.bulk_price, "stock_level": p.stock_level, "unit_cost": p.unit_cost, "avg_cost": p.avg_cost,
+    }
 
 
 @app.get("/health")
@@ -121,18 +153,21 @@ def edit_branch(branch_id: str, body: BranchUpdate, db: Session = Depends(get_db
 @app.get("/products")
 def products(branch: Branch = Depends(get_branch_context), db: Session = Depends(get_db)):
     rows = db.scalars(select(Product).order_by(Product.prod_name)).all()
-    return [{"prod_id": p.prod_id, "prod_name": p.prod_name, "unit_type": p.unit_type, "prod_price": p.prod_price} for p in rows]
+    return [product_out(p) for p in rows]
 
 
 @app.post("/products")
 def add_product(body: ProductCreate, branch: Branch = Depends(get_branch_context), user: User = Depends(admin_only), db: Session = Depends(get_db)):
     if db.get(Product, body.prod_id):
         raise HTTPException(409, "Product ID already exists")
-    p = Product(**body.model_dump())
+    data = body.model_dump()
+    # A brand-new product's avg_cost simply starts at whatever unit_cost it
+    # was created with (nothing to average against yet).
+    p = Product(**data, avg_cost=data["unit_cost"])
     db.add(p)
     db.commit()
     db.refresh(p)
-    return {"prod_id": p.prod_id, "prod_name": p.prod_name, "unit_type": p.unit_type, "prod_price": p.prod_price}
+    return product_out(p)
 
 
 @app.patch("/products/{prod_id}")
@@ -145,7 +180,25 @@ def edit_product(prod_id: str, body: ProductUpdate, branch: Branch = Depends(get
             setattr(p, k, v)
     db.commit()
     db.refresh(p)
-    return {"prod_id": p.prod_id, "prod_name": p.prod_name, "unit_type": p.unit_type, "prod_price": p.prod_price}
+    return product_out(p)
+
+
+@app.post("/products/{prod_id}/restock")
+def restock_product(prod_id: str, body: RestockIn, branch: Branch = Depends(get_branch_context), user: User = Depends(admin_only), db: Session = Depends(get_db)):
+    """The only way stock_level/unit_cost/avg_cost change outside of a sale.
+    avg_cost = (previous unit_cost + this batch's unit_cost) / 2 — a plain
+    average of the last two costs, not weighted by quantity."""
+    p = db.get(Product, prod_id)
+    if not p:
+        raise HTTPException(404, "Product not found")
+    # First-ever restock (or a product that's never had a cost recorded):
+    # nothing to average against yet, so the new cost stands on its own.
+    p.avg_cost = body.unit_cost if p.unit_cost == 0 else round((p.unit_cost + body.unit_cost) / 2, 4)
+    p.unit_cost = body.unit_cost
+    p.stock_level += body.quantity
+    db.commit()
+    db.refresh(p)
+    return product_out(p)
 
 
 # -------------------------------------------------------------------- Sales
@@ -177,13 +230,21 @@ def create_sale(body: SaleCreate, branch: Branch = Depends(get_branch_context), 
         body.receipt_no = str(counter.next_no)
         counter.next_no += 1
 
-    rows = [
-        SalesHistory(
+    rows = []
+    for i in body.items:
+        # Resolve the catalogue product to pull its avg_cost (for gross
+        # profit, frozen into this row at sale time) and to deduct stock.
+        # Stock is never floored at zero — a sale that outruns stock just
+        # carries the shortfall forward as a negative stock_level.
+        prod = db.get(Product, i.prod_id) if i.prod_id else db.scalar(select(Product).where(Product.prod_name == i.product))
+        line_avg_cost = prod.avg_cost if prod else 0.0
+        if prod:
+            prod.stock_level -= i.qty
+        rows.append(SalesHistory(
             receipt_no=body.receipt_no, date=now, pmt_type=body.pmt_type, customer=body.customer,
             cashier=body.cashier, prod=i.product, price=i.price, qty=i.qty, total=i.total, status=body.status,
-        )
-        for i in body.items
-    ]
+            avg_cost=line_avg_cost,
+        ))
     db.add_all(rows)
     db.commit()
     return {"receipt_no": body.receipt_no, "date": now, "status": body.status, "items": len(rows), "total": sum(i.total for i in body.items)}
@@ -249,31 +310,45 @@ def update_payment_status(receipt_no: str, body: SaleStatusUpdate, branch: Branc
 
 
 @app.get("/summary")
-def summary(period: str = Query("weekly", pattern="^(weekly|monthly|yearly)$"), branch: Branch = Depends(get_branch_context), user: User = Depends(admin_only), db: Session = Depends(get_db)):
+def summary(period: str = Query("weekly", pattern="^(weekly|monthly|quarterly|yearly)$"), branch: Branch = Depends(get_branch_context), user: User = Depends(admin_only), db: Session = Depends(get_db)):
     now = datetime.now(timezone.utc)
     if period == "weekly":
         start = now - timedelta(days=7)
         bucket = "day"
+        label_fmt = "%d %b"
     elif period == "monthly":
         start = now - timedelta(days=30)
         bucket = "day"
+        label_fmt = "%d %b"
+    elif period == "quarterly":
+        start = now - timedelta(days=90)
+        bucket = "week"
+        label_fmt = "%d %b"
     else:
         start = now - timedelta(days=365)
         bucket = "month"
+        label_fmt = "%b %Y"
 
     # NOTE: func.date_trunc is Postgres-specific (this app is Postgres-only).
     bucket_expr = func.date_trunc(bucket, SalesHistory.date)
+    # Gross profit per line = total charged minus (avg_cost * qty) — avg_cost
+    # here is the value frozen onto the row at the moment of that sale.
+    profit_expr = SalesHistory.total - SalesHistory.avg_cost * SalesHistory.qty
     rows = db.execute(
-        select(bucket_expr.label("bucket"), func.sum(SalesHistory.total).label("value"))
+        select(bucket_expr.label("bucket"), func.sum(SalesHistory.total).label("value"), func.sum(profit_expr).label("profit"))
         .where(SalesHistory.date >= start, SalesHistory.status != "cancelled")
         .group_by(bucket_expr)
         .order_by(bucket_expr)
     ).all()
     total_sales = sum(float(r.value or 0) for r in rows)
+    gross_profit = sum(float(r.profit or 0) for r in rows)
     paid = db.scalar(select(func.coalesce(func.sum(SalesHistory.total), 0)).where(SalesHistory.date >= start, SalesHistory.status == "paid")) or 0
     outstanding = max(total_sales - float(paid), 0)
-    chart = [{"label": r.bucket.strftime("%d %b" if bucket == "day" else "%b %Y"), "value": float(r.value or 0)} for r in rows]
-    return {"period": period, "total_sales": total_sales, "paid_sales": float(paid), "outstanding": outstanding, "chart": chart}
+    chart = [{"label": r.bucket.strftime(label_fmt), "value": float(r.value or 0), "profit": float(r.profit or 0)} for r in rows]
+    return {
+        "period": period, "total_sales": total_sales, "paid_sales": float(paid),
+        "outstanding": outstanding, "gross_profit": gross_profit, "chart": chart,
+    }
 
 
 @app.get("/payments/summary")
