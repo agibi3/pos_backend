@@ -106,3 +106,32 @@ class SaleStatusUpdate(BaseModel):
 class PaymentSummary(BaseModel):
     name: str
     value: float
+
+
+class ExpenseTypeCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+
+
+class ExpenseTypeOut(BaseModel):
+    id: int
+    name: str
+
+
+class ExpenseCreate(BaseModel):
+    expense_type: str = Field(min_length=1, max_length=80)
+    description: str = ""
+    amount: float = Field(gt=0)
+
+
+class ExpenseOut(BaseModel):
+    id: int
+    date: datetime
+    expense_type: str
+    description: str
+    amount: float
+    recorded_by: str
+
+
+class ExpensePieSlice(BaseModel):
+    name: str
+    value: float

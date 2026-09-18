@@ -2,7 +2,7 @@ import re
 from sqlalchemy import MetaData, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
-from .models import Product, SalesHistory, ReceiptCounter
+from .models import Product, SalesHistory, ReceiptCounter, Expense, ExpenseType
 
 # Schema names are always derived server-side from a validated branch_id,
 # never taken from a request body directly — this keeps them safe to
@@ -28,7 +28,7 @@ def create_branch_schema(engine: Engine, schema_name: str) -> None:
     with engine.begin() as conn:
         conn.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{schema_name}"'))
         branch_meta = MetaData()
-        for table in (Product.__table__, SalesHistory.__table__, ReceiptCounter.__table__):
+        for table in (Product.__table__, SalesHistory.__table__, ReceiptCounter.__table__, Expense.__table__, ExpenseType.__table__):
             table.to_metadata(branch_meta, schema=schema_name)
         branch_meta.create_all(bind=conn)
         conn.execute(

@@ -6,9 +6,10 @@ import { naira } from "../../utils/format.js";
 import { Card, EmptyState } from "../common/UI.jsx";
 
 export default function SummaryTab() {
-  const { apiUrl, token, activeBranchId } = useSupabaseData();
+  const { apiUrl, token, activeBranchId, currentUser } = useSupabaseData();
+  const isOverallAdmin = currentUser?.role === "overall_admin";
   const [period, setPeriod] = useState("weekly");
-  const [summary, setSummary] = useState({ chart: [], total_sales: 0, paid_sales: 0, outstanding: 0, gross_profit: 0 });
+  const [summary, setSummary] = useState({ chart: [], total_sales: 0, paid_sales: 0, cash: 0, outstanding: 0, gross_profit: 0, expenses_total: 0, ebitda: 0 });
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -21,6 +22,18 @@ export default function SummaryTab() {
     return () => { active = false; };
   }, [apiUrl, token, period, activeBranchId]);
 
+  // Branch admins see sales/cash/outstanding only; profit-derived figures
+  // (gross profit, EBITDA) are overall-admin-only — the API already omits
+  // them for branch admins, this just mirrors that in what's rendered.
+  const cards = [
+    ["Sales", summary.total_sales],
+    ["Cash", summary.cash ?? summary.paid_sales],
+    ["Outstanding", summary.outstanding],
+  ];
+  if (isOverallAdmin) {
+    cards.push(["Gross profit", summary.gross_profit], ["EBITDA", summary.ebitda]);
+  }
+
   return (
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
@@ -31,20 +44,20 @@ export default function SummaryTab() {
       </div>
       {error && <div style={{ color: "#B3261E", fontSize: 13, marginBottom: 10 }}>{error}</div>}
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
-        {[
-          ["Sales", summary.total_sales],
-          ["Paid", summary.paid_sales],
-          ["Outstanding", summary.outstanding],
-          ["Gross profit", summary.gross_profit],
-        ].map(([label, value]) => (
+        {cards.map(([label, value]) => (
           <Card key={label} style={{ flex: "1 1 180px" }}>
             <div style={{ fontSize: 12.5, color: "#8a938f", marginBottom: 6 }}>{label}</div>
             <div style={{ fontSize: 20, fontWeight: 700, color: TEAL_DARK }}>{naira(value)}</div>
           </Card>
         ))}
       </div>
+      {isOverallAdmin && (
+        <div style={{ color: "#7a8581", fontSize: 12, marginTop: -8, marginBottom: 16 }}>
+          EBITDA = Gross profit − Expenses ({naira(summary.expenses_total)}) for the selected period.
+        </div>
+      )}
       <Card>
-        <div style={{ fontSize: 13, color: "#8a938f", marginBottom: 8 }}>Sales & gross profit ({period})</div>
+        <div style={{ fontSize: 13, color: "#8a938f", marginBottom: 8 }}>{isOverallAdmin ? `Sales & gross profit (${period})` : `Sales (${period})`}</div>
         {!summary.chart.length ? <EmptyState text="No sales in this period yet." /> : (
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={summary.chart}>
@@ -52,7 +65,7 @@ export default function SummaryTab() {
               <XAxis dataKey="label" tick={{ fontSize: 12 }} /><YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `₦${v >= 1000 ? (v / 1000).toFixed(0) + "k" : v}`} />
               <Tooltip formatter={(v) => naira(v)} /><Legend wrapperStyle={{ fontSize: 12 }} />
               <Bar dataKey="value" name="Sales" fill={TEAL} radius={[4, 4, 0, 0]} />
-              <Bar dataKey="profit" name="Gross profit" fill={AMBER} radius={[4, 4, 0, 0]} />
+              {isOverallAdmin && <Bar dataKey="profit" name="Gross profit" fill={AMBER} radius={[4, 4, 0, 0]} />}
             </BarChart>
           </ResponsiveContainer>
         )}

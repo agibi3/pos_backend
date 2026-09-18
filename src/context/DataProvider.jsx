@@ -22,7 +22,7 @@ function withBranch(path, branchId) {
 }
 
 export function SupabaseDataProvider({ children }) {
-  const [data, setData] = useState({ users: [], products: [], history: [], payments: [] });
+  const [data, setData] = useState({ users: [], products: [], history: [] });
   const [branches, setBranches] = useState([]);
   const [token, setToken] = useState(() => localStorage.getItem("pos_token") || "");
   const [currentUser, setCurrentUser] = useState(() => {
@@ -54,22 +54,20 @@ export function SupabaseDataProvider({ children }) {
     if (currentUser.role === "overall_admin" && !effectiveBranchId) {
       // Overall admin hasn't picked a branch to work in yet — nothing
       // branch-scoped to fetch until they do.
-      setData({ users: [], products: [], history: [], payments: [] });
+      setData({ users: [], products: [], history: [] });
       return;
     }
     setLoading(true);
     try {
       const products = await request(withBranch("/products", effectiveBranchId), {}, token);
-      const next = { products, users: [], history: [], payments: [] };
+      const next = { products, users: [], history: [] };
       if (currentUser.role !== "cashier") {
-        const [users, sales, payments] = await Promise.all([
+        const [users, sales] = await Promise.all([
           request(withBranch("/users", effectiveBranchId), {}, token),
           request(withBranch("/sales?page=1&page_size=100", effectiveBranchId), {}, token),
-          request(withBranch("/payments/summary", effectiveBranchId), {}, token),
         ]);
         next.users = users;
         next.history = sales.items;
-        next.payments = payments;
       }
       setData(next);
       setError("");
@@ -104,7 +102,7 @@ export function SupabaseDataProvider({ children }) {
     setCurrentUser(null);
     setBranches([]);
     setActiveBranchId("");
-    setData({ users: [], products: [], history: [], payments: [] });
+    setData({ users: [], products: [], history: [] });
   }
 
   const refresh = useCallback(async () => { await loadData(); }, [loadData]);
@@ -162,4 +160,76 @@ export function SupabaseDataProvider({ children }) {
     const b = await request(`/branches/${encodeURIComponent(branchId)}`, { method: "PATCH", body: JSON.stringify(patch) }, token);
     await loadBranches();
     return b;
-  }, [
+  }, [token, loadBranches]);
+
+  // ------------------------------------------------------------ Expenses
+  const getExpenseTypes = useCallback(async () =>
+    request(withBranch("/expense-types", effectiveBranchId), {}, token),
+  [token, effectiveBranchId]);
+
+  const addExpenseType = useCallback(async (name) =>
+    request(withBranch("/expense-types", effectiveBranchId), { method: "POST", body: JSON.stringify({ name }) }, token),
+  [token, effectiveBranchId]);
+
+  const getExpenses = useCallback(async (period = "") =>
+    request(withBranch(`/expenses${period ? `?period=${period}` : ""}`, effectiveBranchId), {}, token),
+  [token, effectiveBranchId]);
+
+  const getExpensesSummary = useCallback(async (period) =>
+    request(withBranch(`/expenses/summary?period=${period}`, effectiveBranchId), {}, token),
+  [token, effectiveBranchId]);
+
+  const addExpense = useCallback(async (body) =>
+    request(withBranch("/expenses", effectiveBranchId), { method: "POST", body: JSON.stringify(body) }, token),
+  [token, effectiveBranchId]);
+
+  const activeBranch = useMemo(
+    () => branches.find((b) => b.branchId === effectiveBranchId) || null,
+    [branches, effectiveBranchId]
+  );
+
+  const value = useMemo(() => ({
+    apiUrl: API_URL,
+    token,
+    currentUser,
+    branches,
+    activeBranchId: effectiveBranchId,
+    activeBranch,
+    chooseBranch,
+    loading,
+    error,
+    data,
+    users: data.users,
+    products: data.products,
+    history: data.history,
+    login,
+    logout,
+    refresh,
+    insertRow,
+    insertRows,
+    updateRow,
+    getSales,
+    getSaleByReceipt,
+    setPaymentStatus,
+    restockProduct,
+    createBranch,
+    updateBranch,
+    getExpenseTypes,
+    addExpenseType,
+    getExpenses,
+    getExpensesSummary,
+    addExpense,
+  }), [
+    token, currentUser, branches, effectiveBranchId, activeBranch, chooseBranch, loading, error, data,
+    login, refresh, insertRow, insertRows, updateRow, getSales, getSaleByReceipt, setPaymentStatus,
+    restockProduct, createBranch, updateBranch, getExpenseTypes, addExpenseType, getExpenses, getExpensesSummary, addExpense,
+  ]);
+
+  return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
+}
+
+export function useSupabaseData() {
+  const ctx = useContext(DataContext);
+  if (!ctx) throw new Error("useSupabaseData must be used within a SupabaseDataProvider");
+  return ctx;
+}

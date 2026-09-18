@@ -7,7 +7,7 @@ import UsersTab from "./UsersTab.jsx";
 import ProductsTab from "./ProductsTab.jsx";
 import InventoryTab from "./InventoryTab.jsx";
 import HistoryTab from "./HistoryTab.jsx";
-import PaymentsTab from "./PaymentsTab.jsx";
+import ExpensesTab from "./ExpensesTab.jsx";
 import BranchesTab from "./BranchesTab.jsx";
 
 const BRANCH_SCOPED_TABS = [
@@ -16,7 +16,7 @@ const BRANCH_SCOPED_TABS = [
   { id: "products", label: "Manage Products" },
   { id: "inventory", label: "Inventory" },
   { id: "history", label: "Sales History" },
-  { id: "payments", label: "Payment" },
+  { id: "expenses", label: "Expenses" },
 ];
 
 export default function AdminScreen({ onLogout }) {
@@ -86,7 +86,7 @@ export default function AdminScreen({ onLogout }) {
             <div style={{ color: "#8a938f", fontSize: 14, padding: "40px 0", textAlign: "center" }}>
               {branches.length === 0
                 ? <>No branches yet — head to the <strong>Branches</strong> tab to create the first one.</>
-                : <>Pick a branch from the dropdown above to manage its products, users, sales and payments.</>}
+                : <>Pick a branch from the dropdown above to manage its products, users, sales and expenses.</>}
             </div>
           ) : (
             <>
@@ -95,7 +95,7 @@ export default function AdminScreen({ onLogout }) {
               {tab === "products" && <ProductsTab notify={notify} />}
               {tab === "inventory" && <InventoryTab notify={notify} />}
               {tab === "history" && <HistoryTab />}
-              {tab === "payments" && <PaymentsTab notify={notify} />}
+              {tab === "expenses" && <ExpensesTab notify={notify} />}
               {tab === "branches" && isOverallAdmin && <BranchesTab notify={notify} />}
             </>
           )}

@@ -91,3 +91,31 @@ Index("ix_sales_history_date_status", SalesHistory.date, SalesHistory.status)
 Index("ix_sales_history_receipt_date", SalesHistory.receipt_no, SalesHistory.date)
 
 SALE_STATUSES = {"order", "paid", "not_paid", "cancelled"}
+
+
+class ExpenseType(Base):
+    """A named category an expense can be filed under (e.g. Salaries,
+    Fueling, Rent). Branch-scoped, like Product/SalesHistory — lives in
+    each branch's own schema so one branch's categories never leak into
+    another's."""
+    __tablename__ = "expense_types"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(80), unique=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+class Expense(Base):
+    __tablename__ = "expenses"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    date: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True, nullable=False)
+    expense_type: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    description: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    amount: Mapped[float] = mapped_column(Float, nullable=False)
+    recorded_by: Mapped[str] = mapped_column(String(120), nullable=False, default="")
+
+
+Index("ix_expenses_date_type", Expense.date, Expense.expense_type)
+
+# Pie-chart slices that get their own category; anything filed under any
+# other registered type is folded into "Miscellaneous" on the chart.
+MAJOR_EXPENSE_TYPES = ["Salaries", "Fueling", "Rent", "Utilities", "Logistics/Transport"]

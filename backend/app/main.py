@@ -2,12 +2,12 @@ import os
 from datetime import datetime, timedelta, timezone
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import func, select, text, update
+from sqlalchemy import MetaData, func, select, text, update
 from sqlalchemy.orm import Session
 from .branching import create_branch_schema, make_schema_name
 from .database import Base, engine, get_db, SessionLocal
 from .deps import admin_only, current_user, get_branch_context, overall_admin_only
-from .models import Branch, Product, ReceiptCounter, SalesHistory, User, SALE_STATUSES
+from .models import Branch, Expense, ExpenseType, MAJOR_EXPENSE_TYPES, Product, ReceiptCounter, SalesHistory, User, SALE_STATUSES
 from .schemas import *
 from .security import create_token, hash_password, verify_password
 
@@ -43,6 +43,28 @@ except Exception:
     # `branches` table has any rows, or a DB user without ALTER rights.
     pass
 
+
+def _ensure_expense_tables() -> None:
+    """One-time, idempotent migration: creates the expenses/expense_types
+    tables inside every *existing* branch's schema. New branches already
+    get these tables automatically (create_branch_schema clones the
+    current model definitions) — this just backfills branches created
+    before expense tracking existed."""
+    with SessionLocal() as db:
+        schema_names = [b.schema_name for b in db.scalars(select(Branch)).all()]
+    with engine.begin() as conn:
+        for schema in schema_names:
+            branch_meta = MetaData()
+            for table in (Expense.__table__, ExpenseType.__table__):
+                table.to_metadata(branch_meta, schema=schema)
+            branch_meta.create_all(bind=conn, checkfirst=True)
+
+
+try:
+    _ensure_expense_tables()
+except Exception:
+    pass
+
 app = FastAPI(title="Mai_Ganima POS API", version="2.0.0")
 origins = [x.strip() for x in os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",") if x.strip()]
 app.add_middleware(CORSMiddleware, allow_origins=origins, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
@@ -70,6 +92,10 @@ def product_out(p: Product):
         "prod_id": p.prod_id, "prod_name": p.prod_name, "unit_type": p.unit_type, "prod_price": p.prod_price,
         "bulk_price": p.bulk_price, "stock_level": p.stock_level, "unit_cost": p.unit_cost, "avg_cost": p.avg_cost,
     }
+
+
+def expense_out(e: Expense):
+    return {"id": e.id, "date": e.date, "expense_type": e.expense_type, "description": e.description, "amount": e.amount, "recorded_by": e.recorded_by}
 
 
 @app.get("/health")
@@ -282,12 +308,33 @@ def sale(receipt_no: str, branch: Branch = Depends(get_branch_context), db: Sess
 def sale_status(receipt_no: str, body: SaleStatusUpdate, branch: Branch = Depends(get_branch_context), user: User = Depends(admin_only), db: Session = Depends(get_db)):
     """Admin-only, full control — used by the "Update payment status" mini
     screen in the History tab (paid / not paid / cancel, from any starting
-    status)."""
+    status).
+
+    Cancelling a receipt puts its items' quantities back into inventory
+    (matched by product name, since that's what's frozen onto each
+    SalesHistory row). Moving a previously-cancelled receipt to any other
+    status reverses that — the stock is deducted again — so stock_level
+    stays correct no matter which direction the status changes."""
     if body.status not in SALE_STATUSES:
         raise HTTPException(400, "Invalid status")
-    result = db.execute(update(SalesHistory).where(SalesHistory.receipt_no == receipt_no).values(status=body.status))
-    if result.rowcount == 0:
+    rows = db.scalars(select(SalesHistory).where(SalesHistory.receipt_no == receipt_no)).all()
+    if not rows:
         raise HTTPException(404, "Sale not found")
+
+    was_cancelled = rows[0].status == "cancelled"
+    now_cancelled = body.status == "cancelled"
+    if now_cancelled and not was_cancelled:
+        for r in rows:
+            prod = db.scalar(select(Product).where(Product.prod_name == r.prod))
+            if prod:
+                prod.stock_level += r.qty
+    elif was_cancelled and not now_cancelled:
+        for r in rows:
+            prod = db.scalar(select(Product).where(Product.prod_name == r.prod))
+            if prod:
+                prod.stock_level -= r.qty
+
+    db.execute(update(SalesHistory).where(SalesHistory.receipt_no == receipt_no).values(status=body.status))
     db.commit()
     return {"receipt_no": receipt_no, "status": body.status}
 
@@ -309,25 +356,24 @@ def update_payment_status(receipt_no: str, body: SaleStatusUpdate, branch: Branc
     return {"receipt_no": receipt_no, "status": body.status}
 
 
+def _period_start(period: str) -> datetime:
+    now = datetime.now(timezone.utc)
+    days = {"weekly": 7, "monthly": 30, "quarterly": 90, "yearly": 365}[period]
+    return now - timedelta(days=days)
+
+
+def _period_bucket(period: str) -> tuple[str, str]:
+    if period in ("weekly", "monthly"):
+        return "day", "%d %b"
+    if period == "quarterly":
+        return "week", "%d %b"
+    return "month", "%b %Y"
+
+
 @app.get("/summary")
 def summary(period: str = Query("weekly", pattern="^(weekly|monthly|quarterly|yearly)$"), branch: Branch = Depends(get_branch_context), user: User = Depends(admin_only), db: Session = Depends(get_db)):
-    now = datetime.now(timezone.utc)
-    if period == "weekly":
-        start = now - timedelta(days=7)
-        bucket = "day"
-        label_fmt = "%d %b"
-    elif period == "monthly":
-        start = now - timedelta(days=30)
-        bucket = "day"
-        label_fmt = "%d %b"
-    elif period == "quarterly":
-        start = now - timedelta(days=90)
-        bucket = "week"
-        label_fmt = "%d %b"
-    else:
-        start = now - timedelta(days=365)
-        bucket = "month"
-        label_fmt = "%b %Y"
+    start = _period_start(period)
+    bucket, label_fmt = _period_bucket(period)
 
     # NOTE: func.date_trunc is Postgres-specific (this app is Postgres-only).
     bucket_expr = func.date_trunc(bucket, SalesHistory.date)
@@ -344,17 +390,111 @@ def summary(period: str = Query("weekly", pattern="^(weekly|monthly|quarterly|ye
     gross_profit = sum(float(r.profit or 0) for r in rows)
     paid = db.scalar(select(func.coalesce(func.sum(SalesHistory.total), 0)).where(SalesHistory.date >= start, SalesHistory.status == "paid")) or 0
     outstanding = max(total_sales - float(paid), 0)
-    chart = [{"label": r.bucket.strftime(label_fmt), "value": float(r.value or 0), "profit": float(r.profit or 0)} for r in rows]
-    return {
+
+    result = {
         "period": period, "total_sales": total_sales, "paid_sales": float(paid),
-        "outstanding": outstanding, "gross_profit": gross_profit, "chart": chart,
+        "cash": float(paid), "outstanding": outstanding,
     }
+
+    # Profit and anything derived from it (gross profit, EBITDA, and the
+    # profit line on the chart) is overall-admin-only. Branch admins get
+    # sales/cash/outstanding and a chart with sales only, no profit.
+    if user.role == "overall_admin":
+        expenses_total = db.scalar(select(func.coalesce(func.sum(Expense.amount), 0)).where(Expense.date >= start)) or 0
+        ebitda = gross_profit - float(expenses_total)
+        result["gross_profit"] = gross_profit
+        result["expenses_total"] = float(expenses_total)
+        result["ebitda"] = ebitda
+        result["chart"] = [{"label": r.bucket.strftime(label_fmt), "value": float(r.value or 0), "profit": float(r.profit or 0)} for r in rows]
+    else:
+        result["chart"] = [{"label": r.bucket.strftime(label_fmt), "value": float(r.value or 0)} for r in rows]
+
+    return result
 
 
 @app.get("/payments/summary")
 def payment_summary(branch: Branch = Depends(get_branch_context), user: User = Depends(admin_only), db: Session = Depends(get_db)):
     rows = db.execute(select(SalesHistory.pmt_type, func.sum(SalesHistory.total)).where(SalesHistory.status == "paid").group_by(SalesHistory.pmt_type)).all()
     return [{"name": name or "Unknown", "value": float(value or 0)} for name, value in rows]
+
+
+# ----------------------------------------------------------------- Expenses
+
+@app.get("/expense-types", response_model=list[ExpenseTypeOut])
+def expense_types(branch: Branch = Depends(get_branch_context), user: User = Depends(admin_only), db: Session = Depends(get_db)):
+    rows = db.scalars(select(ExpenseType).order_by(ExpenseType.name)).all()
+    return [{"id": t.id, "name": t.name} for t in rows]
+
+
+@app.post("/expense-types", response_model=ExpenseTypeOut)
+def add_expense_type(body: ExpenseTypeCreate, branch: Branch = Depends(get_branch_context), user: User = Depends(admin_only), db: Session = Depends(get_db)):
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(400, "Name is required")
+    if db.scalar(select(ExpenseType).where(func.lower(ExpenseType.name) == name.lower())):
+        raise HTTPException(409, "That expense type already exists")
+    t = ExpenseType(name=name)
+    db.add(t)
+    db.commit()
+    db.refresh(t)
+    return {"id": t.id, "name": t.name}
+
+
+@app.get("/expenses", response_model=list[ExpenseOut])
+def expenses(
+    period: str | None = Query(None, pattern="^(weekly|monthly|quarterly|yearly)$"),
+    branch: Branch = Depends(get_branch_context), user: User = Depends(admin_only), db: Session = Depends(get_db),
+):
+    q = select(Expense).order_by(Expense.date.desc())
+    if period:
+        q = q.where(Expense.date >= _period_start(period))
+    rows = db.scalars(q).all()
+    return [expense_out(e) for e in rows]
+
+
+@app.post("/expenses", response_model=ExpenseOut)
+def add_expense(body: ExpenseCreate, branch: Branch = Depends(get_branch_context), user: User = Depends(admin_only), db: Session = Depends(get_db)):
+    expense_type = body.expense_type.strip()
+    if not expense_type:
+        raise HTTPException(400, "Expense type is required")
+    # Auto-register the type if it hasn't been registered yet, so recording
+    # an expense never requires a separate trip to register its type first.
+    if not db.scalar(select(ExpenseType).where(func.lower(ExpenseType.name) == expense_type.lower())):
+        db.add(ExpenseType(name=expense_type))
+    e = Expense(expense_type=expense_type, description=body.description.strip(), amount=body.amount, recorded_by=user.full_name)
+    db.add(e)
+    db.commit()
+    db.refresh(e)
+    return expense_out(e)
+
+
+@app.get("/expenses/summary", response_model=list[ExpensePieSlice])
+def expenses_summary(
+    period: str = Query("monthly", pattern="^(weekly|monthly|quarterly|yearly)$"),
+    branch: Branch = Depends(get_branch_context), user: User = Depends(admin_only), db: Session = Depends(get_db),
+):
+    """Pie-chart-ready totals: Salaries / Fueling / Rent / Utilities /
+    Logistics-Transport each keep their own slice; every other registered
+    expense type is folded into a single "Miscellaneous" slice."""
+    start = _period_start(period)
+    rows = db.execute(
+        select(Expense.expense_type, func.sum(Expense.amount)).where(Expense.date >= start).group_by(Expense.expense_type)
+    ).all()
+    major_set = {t.lower() for t in MAJOR_EXPENSE_TYPES}
+    slices = {t: 0.0 for t in MAJOR_EXPENSE_TYPES}
+    misc = 0.0
+    for name, value in rows:
+        value = float(value or 0)
+        if (name or "").lower() in major_set:
+            # Match on the registered major type's canonical casing.
+            canonical = next(t for t in MAJOR_EXPENSE_TYPES if t.lower() == name.lower())
+            slices[canonical] += value
+        else:
+            misc += value
+    out = [{"name": name, "value": value} for name, value in slices.items() if value > 0]
+    if misc > 0:
+        out.append({"name": "Miscellaneous", "value": misc})
+    return out
 
 
 # -------------------------------------------------------------------- Users
