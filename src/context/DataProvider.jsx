@@ -140,6 +140,8 @@ export function SupabaseDataProvider({ children }) {
 
   const getSaleByReceipt = useCallback(async (receiptNo) => request(withBranch(`/sales/${encodeURIComponent(receiptNo)}`, effectiveBranchId), {}, token), [token, effectiveBranchId]);
 
+  const getNextReceiptNo = useCallback(async () => request(withBranch("/sales/next-receipt-no", effectiveBranchId), {}, token), [token, effectiveBranchId]);
+
   // Narrow, cashier-usable transition: an "order" can be flipped to paid or
   // not_paid from the reprint screen — nothing else, and only from "order".
   const setPaymentStatus = useCallback(async (receiptNo, status) =>
@@ -148,6 +150,10 @@ export function SupabaseDataProvider({ children }) {
 
   const restockProduct = useCallback(async (prodId, quantity, unitCost) =>
     request(withBranch(`/products/${encodeURIComponent(prodId)}/restock`, effectiveBranchId), { method: "POST", body: JSON.stringify({ quantity, unit_cost: unitCost }) }, token),
+  [token, effectiveBranchId]);
+
+  const resetStock = useCallback(async (prodId) =>
+    request(withBranch(`/products/${encodeURIComponent(prodId)}/reset-stock`, effectiveBranchId), { method: "POST" }, token),
   [token, effectiveBranchId]);
 
   const createBranch = useCallback(async (body) => {
@@ -210,8 +216,10 @@ export function SupabaseDataProvider({ children }) {
     updateRow,
     getSales,
     getSaleByReceipt,
+    getNextReceiptNo,
     setPaymentStatus,
     restockProduct,
+    resetStock,
     createBranch,
     updateBranch,
     getExpenseTypes,
@@ -221,8 +229,8 @@ export function SupabaseDataProvider({ children }) {
     addExpense,
   }), [
     token, currentUser, branches, effectiveBranchId, activeBranch, chooseBranch, loading, error, data,
-    login, refresh, insertRow, insertRows, updateRow, getSales, getSaleByReceipt, setPaymentStatus,
-    restockProduct, createBranch, updateBranch, getExpenseTypes, addExpenseType, getExpenses, getExpensesSummary, addExpense,
+    login, refresh, insertRow, insertRows, updateRow, getSales, getSaleByReceipt, getNextReceiptNo, setPaymentStatus,
+    restockProduct, resetStock, createBranch, updateBranch, getExpenseTypes, addExpenseType, getExpenses, getExpensesSummary, addExpense,
   ]);
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;

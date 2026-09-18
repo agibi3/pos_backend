@@ -9,6 +9,7 @@ import InventoryTab from "./InventoryTab.jsx";
 import HistoryTab from "./HistoryTab.jsx";
 import ExpensesTab from "./ExpensesTab.jsx";
 import BranchesTab from "./BranchesTab.jsx";
+import { ConfirmDialog } from "../common/UI.jsx";
 
 const BRANCH_SCOPED_TABS = [
   { id: "summary", label: "Summary" },
@@ -24,6 +25,7 @@ export default function AdminScreen({ onLogout }) {
   const isOverallAdmin = currentUser.role === "overall_admin";
   const [tab, setTab] = useState(isOverallAdmin && !activeBranchId ? "branches" : "summary");
   const [feed, setFeed] = useState("");
+  const [confirmSignOut, setConfirmSignOut] = useState(false);
 
   const notify = (text) => {
     setFeed(text);
@@ -36,7 +38,7 @@ export default function AdminScreen({ onLogout }) {
   return (
     <div style={{ minHeight: "100vh", background: BG, fontFamily: "'Inter', system-ui, sans-serif", color: INK }}>
       <div style={{ background: TEAL, color: "#fff", padding: "14px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
-        <button onClick={onLogout} style={{ background: "#C0392B", border: "none", color: "#fff", borderRadius: 8, padding: "8px 14px", display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 13 }}>
+        <button onClick={() => setConfirmSignOut(true)} style={{ background: "#C0392B", border: "none", color: "#fff", borderRadius: 8, padding: "8px 14px", display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 13 }}>
           <LogOut size={15} /> Sign out
         </button>
         <div style={{ textAlign: "center" }}>
@@ -101,6 +103,14 @@ export default function AdminScreen({ onLogout }) {
           )}
         </div>
       </div>
+
+      {confirmSignOut && (
+        <ConfirmDialog
+          message="Sign out of the admin dashboard?"
+          onYes={onLogout}
+          onNo={() => setConfirmSignOut(false)}
+        />
+      )}
     </div>
   );
 }

@@ -227,7 +227,30 @@ def restock_product(prod_id: str, body: RestockIn, branch: Branch = Depends(get_
     return product_out(p)
 
 
+@app.post("/products/{prod_id}/reset-stock")
+def reset_stock(prod_id: str, branch: Branch = Depends(get_branch_context), user: User = Depends(admin_only), db: Session = Depends(get_db)):
+    """Zeroes out a single product's stock_level. Doesn't touch unit_cost/
+    avg_cost — only the quantity on hand."""
+    p = db.get(Product, prod_id)
+    if not p:
+        raise HTTPException(404, "Product not found")
+    p.stock_level = 0
+    db.commit()
+    db.refresh(p)
+    return product_out(p)
+
+
 # -------------------------------------------------------------------- Sales
+
+@app.get("/sales/next-receipt-no")
+def next_receipt_no(branch: Branch = Depends(get_branch_context), user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Read-only peek at the DB receipt counter — doesn't reserve or
+    increment it. Used to show the correct upcoming receipt number on the
+    POS screen before a sale is actually saved (the real, final number is
+    still assigned atomically inside /sales at save time)."""
+    counter = db.scalar(select(ReceiptCounter).where(ReceiptCounter.id == 1))
+    return {"receipt_no": str(counter.next_no if counter else 1001)}
+
 
 @app.post("/sales")
 def create_sale(body: SaleCreate, branch: Branch = Depends(get_branch_context), user: User = Depends(current_user), db: Session = Depends(get_db)):
@@ -260,9 +283,16 @@ def create_sale(body: SaleCreate, branch: Branch = Depends(get_branch_context), 
     for i in body.items:
         # Resolve the catalogue product to pull its avg_cost (for gross
         # profit, frozen into this row at sale time) and to deduct stock.
+        # Try prod_id first, but always fall back to matching by name if
+        # that doesn't resolve (e.g. a stale/mismatched ID) — the same
+        # name-based matching the cancel/restock logic uses, so a sale
+        # never silently skips deducting stock just because prod_id
+        # didn't line up with something in the catalogue.
         # Stock is never floored at zero — a sale that outruns stock just
         # carries the shortfall forward as a negative stock_level.
-        prod = db.get(Product, i.prod_id) if i.prod_id else db.scalar(select(Product).where(Product.prod_name == i.product))
+        prod = db.get(Product, i.prod_id) if i.prod_id else None
+        if not prod:
+            prod = db.scalar(select(Product).where(Product.prod_name == i.product))
         line_avg_cost = prod.avg_cost if prod else 0.0
         if prod:
             prod.stock_level -= i.qty

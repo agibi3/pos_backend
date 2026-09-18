@@ -2,14 +2,16 @@ import React, { useState } from "react";
 import { TEAL_DARK, inputStyle } from "../../theme.js";
 import { useSupabaseData } from "../../context/DataProvider.jsx";
 import { naira } from "../../utils/format.js";
-import { Card, FieldLabel, SmallBtn, EmptyState } from "../common/UI.jsx";
+import { Card, FieldLabel, SmallBtn, EmptyState, ConfirmDialog } from "../common/UI.jsx";
 
 export default function InventoryTab({ notify }) {
-  const { products, restockProduct, refresh } = useSupabaseData();
+  const { products, restockProduct, resetStock, refresh } = useSupabaseData();
   const [prodId, setProdId] = useState("");
   const [quantity, setQuantity] = useState("");
   const [unitCost, setUnitCost] = useState("");
   const [busy, setBusy] = useState(false);
+  const [confirmRestock, setConfirmRestock] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(null); // product row being reset, or null
 
   const doRestock = async () => {
     const qtyNum = parseFloat(quantity);
@@ -31,6 +33,20 @@ export default function InventoryTab({ notify }) {
     }
   };
 
+  const doReset = async (p) => {
+    setBusy(true);
+    try {
+      await resetStock(p.prod_id);
+      await refresh();
+      notify(`${p.prod_name} stock reset to 0`);
+    } catch (e) {
+      notify(e.message);
+    } finally {
+      setBusy(false);
+      setConfirmReset(null);
+    }
+  };
+
   return (
     <div>
       <h2 style={{ margin: "0 0 14px", fontSize: 20, color: TEAL_DARK }}>Inventory</h2>
@@ -39,18 +55,19 @@ export default function InventoryTab({ notify }) {
           <EmptyState text="No products yet — add some in Manage Products first." />
         ) : (
           <div style={{ borderRadius: 10, overflow: "hidden", border: "1px solid #EEECE6" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "0.6fr 1.4fr 1fr 1fr 1fr", background: TEAL_DARK, color: "#fff", fontSize: 12, fontWeight: 600, padding: "9px 12px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "0.6fr 1.2fr 1fr 1fr 1fr 0.8fr", background: TEAL_DARK, color: "#fff", fontSize: 12, fontWeight: 600, padding: "9px 12px" }}>
               <div>ID</div>
               <div>Product</div>
               <div style={{ textAlign: "right" }}>Stock level</div>
               <div style={{ textAlign: "right" }}>Unit cost</div>
               <div style={{ textAlign: "right" }}>Avg cost</div>
+              <div></div>
             </div>
             <div style={{ maxHeight: 360, overflowY: "auto" }}>
               {products.map((p, i) => (
                 <div
                   key={p.prod_id}
-                  style={{ display: "grid", gridTemplateColumns: "0.6fr 1.4fr 1fr 1fr 1fr", padding: "8px 12px", fontSize: 13, borderTop: "1px solid #F2F1EC", background: i % 2 ? "#FAFAF7" : "#fff" }}
+                  style={{ display: "grid", gridTemplateColumns: "0.6fr 1.2fr 1fr 1fr 1fr 0.8fr", alignItems: "center", padding: "8px 12px", fontSize: 13, borderTop: "1px solid #F2F1EC", background: i % 2 ? "#FAFAF7" : "#fff" }}
                 >
                   <div>{p.prod_id}</div>
                   <div>{p.prod_name}</div>
@@ -60,6 +77,15 @@ export default function InventoryTab({ notify }) {
                   </div>
                   <div style={{ textAlign: "right" }}>{naira(p.unit_cost)}</div>
                   <div style={{ textAlign: "right" }}>{naira(p.avg_cost)}</div>
+                  <div style={{ textAlign: "right" }}>
+                    <button
+                      onClick={() => setConfirmReset(p)}
+                      disabled={busy || p.stock_level === 0}
+                      style={{ background: "transparent", border: "1px solid #DDA0A0", color: "#C0392B", borderRadius: 6, padding: "4px 8px", fontSize: 11.5, cursor: p.stock_level === 0 ? "default" : "pointer", opacity: p.stock_level === 0 ? 0.4 : 1 }}
+                    >
+                      Reset to 0
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -86,8 +112,24 @@ export default function InventoryTab({ notify }) {
           <FieldLabel>Unit cost of this new stock</FieldLabel>
           <input style={inputStyle} value={unitCost} onChange={(e) => setUnitCost(e.target.value)} placeholder="0.00" />
         </div>
-        <SmallBtn onClick={doRestock} disabled={busy}>{busy ? "Saving…" : "Add stock"}</SmallBtn>
+        <SmallBtn onClick={() => setConfirmRestock(true)} disabled={busy}>{busy ? "Saving…" : "Add stock"}</SmallBtn>
       </Card>
+
+      {confirmRestock && (
+        <ConfirmDialog
+          message={`Add ${quantity || 0} unit(s) to stock at ${naira(parseFloat(unitCost) || 0)} each?`}
+          onYes={() => { setConfirmRestock(false); doRestock(); }}
+          onNo={() => setConfirmRestock(false)}
+        />
+      )}
+
+      {confirmReset && (
+        <ConfirmDialog
+          message={`Reset ${confirmReset.prod_name}'s stock level to 0? This can't be undone.`}
+          onYes={() => doReset(confirmReset)}
+          onNo={() => setConfirmReset(null)}
+        />
+      )}
     </div>
   );
 }

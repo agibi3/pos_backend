@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { LogOut, Printer, Search, ArrowLeft } from "lucide-react";
 import { BG, TEAL, INK, inputStyle } from "../../theme.js";
 import { useSupabaseData } from "../../context/DataProvider.jsx";
-import { ActionBtn, FieldLabel, StatusBadge } from "../common/UI.jsx";
+import { ActionBtn, FieldLabel, StatusBadge, ConfirmDialog } from "../common/UI.jsx";
 import Receipt from "./Receipt.jsx";
 
 export default function ReprintScreen({ cashier, onBack, onLogout }) {
@@ -11,6 +11,7 @@ export default function ReprintScreen({ cashier, onBack, onLogout }) {
   const [sale, setSale] = useState(null);
   const [busy, setBusy] = useState(false);
   const [feed, setFeed] = useState("");
+  const [confirmLogout, setConfirmLogout] = useState(false);
 
   const lookup = async () => {
     if (!receiptNo.trim()) return;
@@ -56,7 +57,7 @@ export default function ReprintScreen({ cashier, onBack, onLogout }) {
           <ArrowLeft size={15} /> Back to till
         </button>
         <div style={{ fontWeight: 700, fontSize: 18 }}>Reprint a receipt</div>
-        <button onClick={onLogout} style={{ background: "#C0392B", border: "none", color: "#fff", borderRadius: 8, padding: "8px 14px", display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 13 }}>
+        <button onClick={() => setConfirmLogout(true)} style={{ background: "#C0392B", border: "none", color: "#fff", borderRadius: 8, padding: "8px 14px", display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 13 }}>
           <LogOut size={15} /> Log out
         </button>
       </div>
@@ -134,10 +135,20 @@ export default function ReprintScreen({ cashier, onBack, onLogout }) {
       <style>{`
         .print-only { display: none; }
         @media print {
-          .no-print { display: none !important; }
-          .print-only { display: block !important; }
+          body * { visibility: hidden; }
+          .print-only, .print-only * { visibility: visible; }
+          .print-only { display: block !important; position: absolute; top: 0; left: 0; width: 100%; }
+          @page { size: auto; margin: 6mm; }
         }
       `}</style>
+
+      {confirmLogout && (
+        <ConfirmDialog
+          message="Log out of the till?"
+          onYes={onLogout}
+          onNo={() => setConfirmLogout(false)}
+        />
+      )}
     </div>
   );
 }

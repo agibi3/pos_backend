@@ -13,7 +13,7 @@ const PAYMENT_STATUSES = [
 ];
 
 export default function POSScreen({ cashier, onLogout }) {
-  const { products, insertRows, refresh, activeBranch } = useSupabaseData();
+  const { products, insertRows, refresh, activeBranch, getNextReceiptNo } = useSupabaseData();
 
   const [screen, setScreen] = useState("sell"); // 'sell' | 'reprint'
   const [cart, setCart] = useState([]);
@@ -27,9 +27,27 @@ export default function POSScreen({ cashier, onLogout }) {
   const [pmtType, setPmtType] = useState("Cash");
   const [pmtStatus, setPmtStatus] = useState("paid");
   const [feed, setFeed] = useState("");
-  const [receiptNo, setReceiptNo] = useState("1001");
+  const [receiptNo, setReceiptNo] = useState("");
   const [saving, setSaving] = useState(false);
   const [confirmClear, setConfirmClear] = useState(null); // 'all' | 'last' | null
+  const [confirmLogout, setConfirmLogout] = useState(false);
+
+  // The number shown before checkout is only a preview — the real receipt
+  // number is still assigned atomically by the DB counter inside /sales at
+  // save time. This just keeps the preview honest instead of a hardcoded
+  // placeholder, and refreshes it after every save so it's ready for the
+  // next sale.
+  const loadNextReceiptNo = async () => {
+    try {
+      const { receipt_no } = await getNextReceiptNo();
+      setReceiptNo(receipt_no);
+    } catch {
+      // Non-fatal — the preview just won't update; the actual save still
+      // gets the correct number from the server regardless.
+    }
+  };
+
+  useEffect(() => { loadNextReceiptNo(); }, []);
 
   useEffect(() => {
     if (!feed) return;
@@ -109,6 +127,7 @@ export default function POSScreen({ cashier, onLogout }) {
       await new Promise((resolve) => requestAnimationFrame(resolve));
       window.print();
       await refresh();
+      await loadNextReceiptNo();
       setCart([]);
       setFeed("Receipt saved and sent to print");
     } catch (e) {
@@ -134,7 +153,7 @@ export default function POSScreen({ cashier, onLogout }) {
           <button onClick={() => setScreen("reprint")} style={{ background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", borderRadius: 8, padding: "8px 14px", display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 13 }}>
             <RotateCcw size={15} /> Reprint
           </button>
-          <button onClick={onLogout} style={{ background: "#C0392B", border: "none", color: "#fff", borderRadius: 8, padding: "8px 14px", display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 13 }}>
+          <button onClick={() => setConfirmLogout(true)} style={{ background: "#C0392B", border: "none", color: "#fff", borderRadius: 8, padding: "8px 14px", display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 13 }}>
             <LogOut size={15} /> Log out
           </button>
         </div>
@@ -250,11 +269,23 @@ export default function POSScreen({ cashier, onLogout }) {
         </div>
       )}
 
+      {confirmLogout && (
+        <div className="no-print">
+          <ConfirmDialog
+            message="Log out of the till?"
+            onYes={onLogout}
+            onNo={() => setConfirmLogout(false)}
+          />
+        </div>
+      )}
+
       <style>{`
         .print-only { display: none; }
         @media print {
-          .no-print { display: none !important; }
-          .print-only { display: block !important; }
+          body * { visibility: hidden; }
+          .print-only, .print-only * { visibility: visible; }
+          .print-only { display: block !important; position: absolute; top: 0; left: 0; width: 100%; }
+          @page { size: auto; margin: 6mm; }
         }
       `}</style>
     </div>
