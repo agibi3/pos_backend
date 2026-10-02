@@ -1,4 +1,4 @@
-from fastapi import Depends, HTTPException, Query, status
+from fastapi import Depends, HTTPException, Query, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 from .branching import set_branch_search_path
@@ -21,6 +21,33 @@ def current_user(credentials: HTTPAuthorizationCredentials = Depends(bearer), db
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User no longer exists")
     return user
+
+
+SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
+# Writes that must keep working for everyone, including demo accounts.
+PUBLIC_WRITE_PATHS = {"/auth/login"}
+
+
+def block_demo_writes(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials = Depends(bearer),
+    db: Session = Depends(get_db),
+) -> None:
+    """Registered app-wide (see main.py). Demo accounts are read-only: any
+    non-GET request from one is rejected with 403 before the route runs, so
+    no current or future endpoint can accidentally let a demo user write.
+    Requests with no/invalid token fall through to the route's own auth."""
+    if request.method in SAFE_METHODS or request.url.path in PUBLIC_WRITE_PATHS:
+        return
+    if not credentials:
+        return
+    try:
+        user_id = decode_token(credentials.credentials).get("sub")
+    except Exception:
+        return
+    user = db.get(User, user_id) if user_id else None
+    if user and user.is_demo:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Demo accounts are read-only")
 
 
 def admin_only(user: User = Depends(current_user)) -> User:
