@@ -7,7 +7,8 @@ import { Card, DataTable, FormRow, SmallBtn } from "../common/UI.jsx";
 const FIELD_MAP = { "Prod ID": "prod_id", "Prod Name": "prod_name", "Unit Type": "unit_type", "Unit Price": "prod_price", "Bulk Price": "bulk_price" };
 
 export default function ProductsTab({ notify }) {
-  const { products, insertRow, updateRow, refresh } = useSupabaseData();
+  const { products, insertRow, updateRow, refresh, currentUser } = useSupabaseData();
+  const isDemo = !!currentUser?.isDemo; // demo accounts are read-only
   const [form, setForm] = useState({ prod_id: "", prod_name: "", unit_type: "", prod_price: "", bulk_price: "" });
   const [update, setUpdate] = useState({ field: "Prod Name", to: "", prod_id: "" });
   const [busy, setBusy] = useState(false);
@@ -65,7 +66,7 @@ export default function ProductsTab({ notify }) {
           <FormRow label="Unit type"><input style={inputStyle} value={form.unit_type} onChange={(e) => setForm({ ...form, unit_type: e.target.value })} /></FormRow>
           <FormRow label="End-user (retail) price"><input style={inputStyle} value={form.prod_price} onChange={(e) => setForm({ ...form, prod_price: e.target.value })} /></FormRow>
           <FormRow label="Bulk price"><input style={inputStyle} value={form.bulk_price} onChange={(e) => setForm({ ...form, bulk_price: e.target.value })} placeholder="Same as end-user price if left blank" /></FormRow>
-          <SmallBtn onClick={addProduct} disabled={busy}>Add product</SmallBtn>
+          <SmallBtn onClick={addProduct} disabled={busy || isDemo} title={isDemo ? "Demo accounts are read-only" : undefined}>Add product</SmallBtn>
         </Card>
         <Card style={{ flex: "1 1 320px" }}>
           <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Update product</div>
@@ -78,7 +79,7 @@ export default function ProductsTab({ notify }) {
           </FormRow>
           <FormRow label="Change to"><input style={inputStyle} value={update.to} onChange={(e) => setUpdate({ ...update, to: e.target.value })} /></FormRow>
           <FormRow label="Product ID"><input style={inputStyle} value={update.prod_id} onChange={(e) => setUpdate({ ...update, prod_id: e.target.value })} /></FormRow>
-          <SmallBtn onClick={updateProduct} disabled={busy}>Update product</SmallBtn>
+          <SmallBtn onClick={updateProduct} disabled={busy || isDemo} title={isDemo ? "Demo accounts are read-only" : undefined}>Update product</SmallBtn>
         </Card>
       </div>
     </div>
