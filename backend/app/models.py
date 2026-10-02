@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, Index
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, Index
 from sqlalchemy.orm import Mapped, mapped_column
 from .database import Base
 
@@ -29,6 +29,9 @@ class User(Base):
     role: Mapped[str] = mapped_column(String(20), nullable=False, default="cashier")
     # null only for overall_admin accounts, which aren't tied to one branch
     branch_id: Mapped[str | None] = mapped_column(String(30), ForeignKey("branches.branch_id"), nullable=True, index=True)
+    # Demo accounts can sign in and look around, but every write request
+    # (POST/PUT/PATCH/DELETE) is rejected server-side — see deps.block_demo_writes.
+    is_demo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
 
 
