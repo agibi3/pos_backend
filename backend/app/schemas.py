@@ -35,6 +35,7 @@ class UserOut(BaseModel):
     role: str
     branchId: str | None = None
     branch: BranchOut | None = None
+    isDemo: bool = False
     created_at: datetime
 
 
