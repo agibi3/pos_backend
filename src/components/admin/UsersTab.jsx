@@ -8,6 +8,7 @@ const FIELD_MAP = { "Full Name": "fullName", "User Name": "userName", Password: 
 export default function UsersTab({ notify }) {
   const { users, branches, currentUser, insertRow, updateRow, refresh } = useSupabaseData();
   const isOverallAdmin = currentUser.role === "overall_admin";
+  const isDemo = !!currentUser.isDemo; // demo accounts are read-only
   const [form, setForm] = useState({ userId: "", fullName: "", userName: "", password: "", role: "cashier", branchId: "" });
   const [update, setUpdate] = useState({ field: "Full Name", to: "", userId: "" });
   const [busy, setBusy] = useState(false);
@@ -89,7 +90,7 @@ export default function UsersTab({ notify }) {
               </select>
             </FormRow>
           )}
-          <SmallBtn onClick={addUser} disabled={busy}>Add user</SmallBtn>
+          <SmallBtn onClick={addUser} disabled={busy || isDemo} title={isDemo ? "Demo accounts are read-only" : undefined}>Add user</SmallBtn>
         </Card>
         <Card style={{ flex: "1 1 320px" }}>
           <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Update user</div>
@@ -115,7 +116,7 @@ export default function UsersTab({ notify }) {
             <option value="">Select a user…</option>
             {users.map((u) => <option key={u.userId} value={u.userId}>{u.userId} — {u.fullName}</option>)}
           </select></FormRow>
-          <SmallBtn onClick={updateUser} disabled={busy}>Update user</SmallBtn>
+          <SmallBtn onClick={updateUser} disabled={busy || isDemo} title={isDemo ? "Demo accounts are read-only" : undefined}>Update user</SmallBtn>
         </Card>
       </div>
     </div>
