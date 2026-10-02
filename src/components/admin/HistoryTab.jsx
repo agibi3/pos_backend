@@ -78,7 +78,8 @@ function UpdateStatusModal({ onClose, notify }) {
 }
 
 export default function HistoryTab() {
-  const { history, getSales } = useSupabaseData();
+  const { history, getSales, currentUser } = useSupabaseData();
+  const isDemo = !!currentUser?.isDemo; // demo accounts are read-only
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
@@ -120,7 +121,7 @@ export default function HistoryTab() {
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
         <h2 style={{ margin: 0, fontSize: 20, color: TEAL_DARK }}>Sales history</h2>
-        <SmallBtn onClick={() => setShowModal(true)}>Update payment status</SmallBtn>
+        <SmallBtn onClick={() => setShowModal(true)} disabled={isDemo} title={isDemo ? "Demo accounts are read-only" : undefined}>Update payment status</SmallBtn>
       </div>
 
       {feed && <div style={{ color: TEAL, fontSize: 13, marginBottom: 12 }}>{feed}</div>}
