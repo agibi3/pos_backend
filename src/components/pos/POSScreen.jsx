@@ -13,7 +13,8 @@ const PAYMENT_STATUSES = [
 ];
 
 export default function POSScreen({ cashier, onLogout }) {
-  const { products, insertRows, refresh, activeBranch, getNextReceiptNo } = useSupabaseData();
+  const { products, insertRows, refresh, activeBranch, getNextReceiptNo, currentUser } = useSupabaseData();
+  const isDemo = !!currentUser?.isDemo; // demo accounts are read-only
 
   const [screen, setScreen] = useState("sell"); // 'sell' | 'reprint'
   const [cart, setCart] = useState([]);
@@ -104,7 +105,7 @@ export default function POSScreen({ cashier, onLogout }) {
   };
 
   const printReceipt = async () => {
-    if (cart.length === 0) return;
+    if (cart.length === 0 || isDemo) return;
     setSaving(true);
     try {
       const rows = cart.map((item) => ({
@@ -166,7 +167,7 @@ export default function POSScreen({ cashier, onLogout }) {
           <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
             <ActionBtn color="#C0392B" onClick={() => setConfirmClear("all")}>Clear All</ActionBtn>
             <ActionBtn color={TEAL} onClick={addToCart} icon={<ShoppingCart size={15} />}>Add to Cart</ActionBtn>
-            <ActionBtn color="#2E9E4F" onClick={printReceipt} icon={<Printer size={15} />} disabled={saving}>
+            <ActionBtn color="#2E9E4F" onClick={printReceipt} icon={<Printer size={15} />} disabled={saving || isDemo} title={isDemo ? "Demo accounts are read-only" : undefined}>
               {saving ? "Saving…" : "Print"}
             </ActionBtn>
             <ActionBtn color="#C0392B" onClick={() => setConfirmClear("last")}>Clear Last Row</ActionBtn>
