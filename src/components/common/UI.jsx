@@ -37,11 +37,12 @@ export function FormRow({ label, children }) {
   );
 }
 
-export function SmallBtn({ onClick, children, disabled }) {
+export function SmallBtn({ onClick, children, disabled, title }) {
   return (
     <button
       onClick={onClick}
       disabled={disabled}
+      title={title}
       style={{
         marginTop: 4,
         background: TEAL,
@@ -60,11 +61,12 @@ export function SmallBtn({ onClick, children, disabled }) {
   );
 }
 
-export function ActionBtn({ color, onClick, children, icon, disabled }) {
+export function ActionBtn({ color, onClick, children, icon, disabled, title }) {
   return (
     <button
       onClick={onClick}
       disabled={disabled}
+      title={title}
       style={{
         background: color,
         color: "#fff",
