@@ -6,7 +6,7 @@ from sqlalchemy import MetaData, func, select, text, update
 from sqlalchemy.orm import Session
 from .branching import create_branch_schema, make_schema_name
 from .database import Base, engine, get_db, SessionLocal
-from .deps import admin_only, current_user, get_branch_context, overall_admin_only
+from .deps import admin_only, block_demo_writes, current_user, get_branch_context, overall_admin_only
 from .models import Branch, Expense, ExpenseType, MAJOR_EXPENSE_TYPES, Product, ReceiptCounter, SalesHistory, User, SALE_STATUSES
 from .schemas import *
 from .security import create_token, hash_password, verify_password
@@ -17,6 +17,20 @@ from .security import create_token, hash_password, verify_password
 # they only ever get created per-branch, inside that branch's own schema
 # (see branching.create_branch_schema), the first time a branch is added.
 Base.metadata.create_all(bind=engine, tables=[Branch.__table__, User.__table__])
+
+
+def _ensure_user_demo_column() -> None:
+    """One-time, idempotent migration: adds users.is_demo to an existing
+    users table (create_all above only creates missing tables, it never
+    alters existing ones)."""
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_demo BOOLEAN NOT NULL DEFAULT FALSE"))
+
+
+try:
+    _ensure_user_demo_column()
+except Exception:
+    pass
 
 
 def _ensure_inventory_columns() -> None:
@@ -65,7 +79,7 @@ try:
 except Exception:
     pass
 
-app = FastAPI(title="Mai_Ganima POS API", version="2.0.0")
+app = FastAPI(title="Mai_Ganima POS API", version="2.0.0", dependencies=[Depends(block_demo_writes)])
 origins = [x.strip() for x in os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",") if x.strip()]
 app.add_middleware(CORSMiddleware, allow_origins=origins, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
@@ -80,7 +94,7 @@ def user_out(u: User, db: Session):
         b = db.get(Branch, u.branch_id)
         if b:
             branch = branch_out(b)
-    return {"userId": u.user_id, "fullName": u.full_name, "userName": u.user_name, "role": u.role, "branchId": u.branch_id, "branch": branch, "created_at": u.created_at}
+    return {"userId": u.user_id, "fullName": u.full_name, "userName": u.user_name, "role": u.role, "branchId": u.branch_id, "branch": branch, "isDemo": bool(u.is_demo), "created_at": u.created_at}
 
 
 def row_out(r: SalesHistory):
