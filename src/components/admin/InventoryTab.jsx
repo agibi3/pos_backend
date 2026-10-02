@@ -5,7 +5,8 @@ import { naira } from "../../utils/format.js";
 import { Card, FieldLabel, SmallBtn, EmptyState, ConfirmDialog } from "../common/UI.jsx";
 
 export default function InventoryTab({ notify }) {
-  const { products, restockProduct, resetStock, refresh } = useSupabaseData();
+  const { products, restockProduct, resetStock, refresh, currentUser } = useSupabaseData();
+  const isDemo = !!currentUser?.isDemo; // demo accounts are read-only
   const [prodId, setProdId] = useState("");
   const [quantity, setQuantity] = useState("");
   const [unitCost, setUnitCost] = useState("");
@@ -80,8 +81,9 @@ export default function InventoryTab({ notify }) {
                   <div style={{ textAlign: "right" }}>
                     <button
                       onClick={() => setConfirmReset(p)}
-                      disabled={busy || p.stock_level === 0}
-                      style={{ background: "transparent", border: "1px solid #DDA0A0", color: "#C0392B", borderRadius: 6, padding: "4px 8px", fontSize: 11.5, cursor: p.stock_level === 0 ? "default" : "pointer", opacity: p.stock_level === 0 ? 0.4 : 1 }}
+                      disabled={busy || isDemo || p.stock_level === 0}
+                      title={isDemo ? "Demo accounts are read-only" : undefined}
+                      style={{ background: "transparent", border: "1px solid #DDA0A0", color: "#C0392B", borderRadius: 6, padding: "4px 8px", fontSize: 11.5, cursor: isDemo || p.stock_level === 0 ? "default" : "pointer", opacity: isDemo || p.stock_level === 0 ? 0.4 : 1 }}
                     >
                       Reset to 0
                     </button>
@@ -112,7 +114,7 @@ export default function InventoryTab({ notify }) {
           <FieldLabel>Unit cost of this new stock</FieldLabel>
           <input style={inputStyle} value={unitCost} onChange={(e) => setUnitCost(e.target.value)} placeholder="0.00" />
         </div>
-        <SmallBtn onClick={() => setConfirmRestock(true)} disabled={busy}>{busy ? "Saving…" : "Add stock"}</SmallBtn>
+        <SmallBtn onClick={() => setConfirmRestock(true)} disabled={busy || isDemo} title={isDemo ? "Demo accounts are read-only" : undefined}>{busy ? "Saving…" : "Add stock"}</SmallBtn>
       </Card>
 
       {confirmRestock && (
