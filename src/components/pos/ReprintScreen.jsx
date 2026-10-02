@@ -6,7 +6,8 @@ import { ActionBtn, FieldLabel, StatusBadge, ConfirmDialog } from "../common/UI.
 import Receipt from "./Receipt.jsx";
 
 export default function ReprintScreen({ cashier, onBack, onLogout }) {
-  const { getSaleByReceipt, setPaymentStatus, activeBranch } = useSupabaseData();
+  const { getSaleByReceipt, setPaymentStatus, activeBranch, currentUser } = useSupabaseData();
+  const isDemo = !!currentUser?.isDemo; // demo accounts are read-only
   const [receiptNo, setReceiptNo] = useState("");
   const [sale, setSale] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -92,8 +93,8 @@ export default function ReprintScreen({ cashier, onBack, onLogout }) {
                 <div style={{ marginBottom: 14 }}>
                   <div style={{ fontSize: 13, color: "#6b7674", marginBottom: 8 }}>This order hasn't been settled yet — mark it before reprinting:</div>
                   <div style={{ display: "flex", gap: 8 }}>
-                    <button onClick={() => markStatus("paid")} disabled={busy} style={{ flex: 1, background: "#2E9E4F", color: "#fff", border: "none", borderRadius: 8, padding: "10px 0", fontWeight: 600, cursor: "pointer" }}>Paid</button>
-                    <button onClick={() => markStatus("not_paid")} disabled={busy} style={{ flex: 1, background: "#C0392B", color: "#fff", border: "none", borderRadius: 8, padding: "10px 0", fontWeight: 600, cursor: "pointer" }}>Not paid</button>
+                    <button onClick={() => markStatus("paid")} disabled={busy || isDemo} title={isDemo ? "Demo accounts are read-only" : undefined} style={{ flex: 1, background: "#2E9E4F", color: "#fff", border: "none", borderRadius: 8, padding: "10px 0", fontWeight: 600, cursor: isDemo ? "default" : "pointer", opacity: isDemo ? 0.6 : 1 }}>Paid</button>
+                    <button onClick={() => markStatus("not_paid")} disabled={busy || isDemo} title={isDemo ? "Demo accounts are read-only" : undefined} style={{ flex: 1, background: "#C0392B", color: "#fff", border: "none", borderRadius: 8, padding: "10px 0", fontWeight: 600, cursor: isDemo ? "default" : "pointer", opacity: isDemo ? 0.6 : 1 }}>Not paid</button>
                   </div>
                 </div>
               ) : null}
