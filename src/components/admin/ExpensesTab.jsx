@@ -47,7 +47,8 @@ function FormField({ label, children }) {
 }
 
 export default function ExpensesTab({ notify: notifyUp }) {
-  const { getExpenseTypes, getExpenses, getExpensesSummary, addExpense } = useSupabaseData();
+  const { getExpenseTypes, getExpenses, getExpensesSummary, addExpense, currentUser } = useSupabaseData();
+  const isDemo = !!currentUser?.isDemo; // demo accounts are read-only
   const [types, setTypes] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [pie, setPie] = useState([]);
@@ -110,7 +111,7 @@ export default function ExpensesTab({ notify: notifyUp }) {
           <select value={period} onChange={(e) => setPeriod(e.target.value)} style={{ ...inputStyle, width: 130 }}>
             <option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="yearly">Yearly</option>
           </select>
-          <SmallBtn onClick={() => setShowRegister(true)}>Register expense type</SmallBtn>
+          <SmallBtn onClick={() => setShowRegister(true)} disabled={isDemo} title={isDemo ? "Demo accounts are read-only" : undefined}>Register expense type</SmallBtn>
         </div>
       </div>
 
@@ -145,7 +146,7 @@ export default function ExpensesTab({ notify: notifyUp }) {
           <FormField label="Amount">
             <input style={inputStyle} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" />
           </FormField>
-          <SmallBtn onClick={submitExpense} disabled={busy}>{busy ? "Saving…" : "Add expense"}</SmallBtn>
+          <SmallBtn onClick={submitExpense} disabled={busy || isDemo} title={isDemo ? "Demo accounts are read-only" : undefined}>{busy ? "Saving…" : "Add expense"}</SmallBtn>
         </Card>
       </div>
 
