@@ -12,7 +12,7 @@ import { Spinner, GlobalKeyframes } from "./common/UI.jsx";
 const DEMO_ACCOUNTS = [
   { role: "Cashier", note: "Opens the till / POS", username: "cashier", password: "cashierpass" },
   { role: "Branch Admin", note: "Manages one branch", username: "br_admin", password: "bradminpass" },
-  { role: "Overall Admin", note: "Full access, all branches", username: "admin", password: "adminpass" },
+  { role: "Overall Admin", note: "Full access, all branches", username: "demo_admin", password: "adminpass" },
 ];
 
 export default function LoginScreen({ onLogin }) {
